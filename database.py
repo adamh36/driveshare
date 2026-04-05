@@ -1,7 +1,7 @@
 import sqlite3 
 import os 
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "Driveshare.db")
+DB_PATH = os.path.join(os.path.dirname(__file__), "driveshare.db")
 
 def get_connection():
     # Return a connection to SQLite database

@@ -1,7 +1,7 @@
 import streamlit as st
 import bcrypt
 from db.database import get_connection
-from Patterns import session
+from Patterns.session import session
 
 st.title("Create an Account") 
 
@@ -66,8 +66,8 @@ if st.button("Register"):
             session.login({"id": user_id, "name": name, "email": email, "role":role})
             st.success("Account created!")
             
-        except Exception as e: 
+        except Exception as e:
             conn.close()
-            st.error(f"Email already exists")
+            st.error(f"Error: {e}")
 
 

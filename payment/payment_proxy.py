@@ -8,7 +8,7 @@ PaymentProxy wraps it, controls access, updates the database,
 and sends notifications to both the owner and renter.
 """
  
-from database import get_connection
+from db.database import get_connection
  
  
 # REAL SUBJECT
@@ -121,19 +121,20 @@ class PaymentProxy:
                 f"failed. The renter has been notified."
             )
  
-        # use sender_id = None to mark these as system notifications,
+        # use sender_id = 1 (system) since messages table requires a sender_id
         # consistent with how the observer pattern sends notifications
         cursor.execute("""
             INSERT INTO messages (sender_id, receiver_id, content)
             VALUES (?, ?, ?)
-        """, (None, renterId, renterMsg))
+        """, (1, renterId, renterMsg))
  
         cursor.execute("""
             INSERT INTO messages (sender_id, receiver_id, content)
             VALUES (?, ?, ?)
-        """, (None, ownerId, ownerMsg))
+        """, (1, ownerId, ownerMsg))
  
         conn.commit()
         conn.close()
  
         print(f"[PaymentProxy] Notifications sent to renter #{renterId} and owner #{ownerId}.")
+ 

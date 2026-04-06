@@ -7,10 +7,10 @@ It also lets them watch a car, which hooks into the Observer pattern in booking.
 """
 
 import streamlit as st
-from database import get_connection
-from Patterns.auth.session import session
+from db.database import get_connection
+from Patterns.session import session
 # Booking Folder
-from Patterns.booking.booking import BookingManager
+from Patterns.booking import BookingManager
 
 # make sure the user is logged in before they can search
 # if not, kick them back to register :)

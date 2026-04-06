@@ -1,7 +1,7 @@
 import streamlit as st
 import bcrypt
-from database import get_connection
-from Patterns.auth import session
+from db.database import get_connection
+from Patterns import session
 
 st.title("Create an Account") 
 

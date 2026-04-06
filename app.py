@@ -1,5 +1,5 @@
 import streamlit as st
-from database import init_db
+from db.database import init_db
 
 # Initialize the database every time the app starts
 init_db()

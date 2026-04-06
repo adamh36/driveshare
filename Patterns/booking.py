@@ -10,7 +10,7 @@ This file handles two things:
 """
 
 from abc import ABC, abstractmethod
-from database import get_connection
+from db.database import get_connection
 
 
 

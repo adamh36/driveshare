@@ -9,8 +9,7 @@ This file handles password recovery using the Chain of Responsibility pattern.
 import bcrypt
 import streamlit as st
 from abc import ABC, abstractmethod
-from database import get_connection
-from Patterns.auth.session import session
+from db.database import get_connection
 
 
 # ABSTRACT HANDLER

@@ -211,3 +211,11 @@ __marimo__/
 #db
 db/driveshare.db
 db/driveshare.db
+__pycache__/
+*.pyc
+*.pyo
+.idea/
+venv/
+driveshare.db
+db/driveshare.db
+.DS_Store

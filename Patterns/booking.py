@@ -17,7 +17,7 @@ from db.database import get_connection
 # OBSERVER PATTERN
 
 
-# OBSERVER (abstract)
+# OBSERVER INTERFACE (abstract)
 # this is just the interface: it doesn't do anything on its own
 # it just forces every concrete observer (renter/user) to implement update()
 # think of it as a contract: if you want to watch a car, you MUST
@@ -25,9 +25,55 @@ from db.database import get_connection
 class RenterObserver(ABC):
 
     @abstractmethod
-    def update(self, carId, eventType, message): pass
+    def update(self, carId: int, eventType: str, message: str) -> None: pass
     # eventType will be something like "available" or "price_drop"
     # message is the actual text the renter will see
+
+
+# SUBJECT INTERFACE (abstract)
+# defines the contract that every subject (watchable object) must follow
+# any class that wants to be observable MUST implement these three methods:
+# subscribe (add a watcher), unsubscribe (remove a watcher), notify (alert everyone)
+class Subject(ABC):
+
+    @abstractmethod
+    def subscribe(self, observer: RenterObserver) -> None: pass
+
+    @abstractmethod
+    def unsubscribe(self, observer: RenterObserver) -> None: pass
+
+    @abstractmethod
+    def notify(self, eventType: str, message: str) -> None: pass
+
+
+# CONCRETE SUBJECT
+# this is the car: the thing being watched
+# it holds the list of all renters (observers/subscribers) who are watching it
+# and it's responsible for notifying them when something changes
+# inherits from Subject and implements all three abstract methods
+class CarSubject(Subject):
+
+    def __init__(self, carId: int) -> None:
+        self.carId = carId
+        # this is the list of renters watching this car
+        # each entry is a RenterObserver (a Renter object)
+        self.observers: list = []
+
+    def subscribe(self, observer: RenterObserver) -> None:
+        # renter clicked "watch this car": add them to the list
+        self.observers.append(observer)
+        print(f"Renter {observer.renterEmail} is now watching car {self.carId}")
+
+    def unsubscribe(self, observer: RenterObserver) -> None:
+        # renter stopped watching: remove them from the list
+        self.observers.remove(observer)
+        print(f"Renter {observer.renterEmail} stopped watching car {self.carId}")
+
+    def notify(self, eventType: str, message: str) -> None:
+        # something happened to the car: loop through every watcher and tell them
+        # each observer handles the notification in their own update() method
+        for observer in self.observers:
+            observer.update(self.carId, eventType, message)
 
 
 # CONCRETE OBSERVER
@@ -35,15 +81,14 @@ class RenterObserver(ABC):
 # when the car (subject) calls notify(), it ends up here
 # update() is where the real reaction happens:
 # we go into the database and store a notification for this renter
-
 class Renter(RenterObserver):
 
-    def __init__(self, renterId, renterEmail):
+    def __init__(self, renterId: int, renterEmail: str) -> None:
         # who this renter is: we need the id for the db and email for display
         self.renterId = renterId
         self.renterEmail = renterEmail
 
-    def update(self, carId, eventType, message):
+    def update(self, carId: int, eventType: str, message: str) -> None:
         # this fires whenever the car we're watching has news for us
         # we just save it to the db as a notification: the UI will show it later
         print(f"Notifying {self.renterEmail}: {message}")
@@ -65,43 +110,11 @@ class Renter(RenterObserver):
         conn.close()
 
 
-# SUBJECT
-# this is the car: the thing being watched
-# it holds the list of all renters (observers/subscribers) who are watching it
-# and it's responsible for notifying them when something changes
-# three jobs: subscribe (add a watcher), unsubscribe (remove a watcher), notify (alert everyone)
-# the subject doesn't care who is watching or what they'll do:
-
-class CarSubject:
-
-    def __init__(self, carId):
-        self.carId = carId
-        # this is the list of renters watching this car
-        # each entry is a RenterObserver (a Renter object)
-        self.observers = []
-
-    def subscribe(self, observer):
-        # renter clicked "watch this car": add them to the list
-        self.observers.append(observer)
-        print(f"Renter {observer.renterEmail} is now watching car {self.carId}")
-
-    def unsubscribe(self, observer):
-        # renter stopped watching: remove them from the list
-        self.observers.remove(observer)
-        print(f"Renter {observer.renterEmail} stopped watching car {self.carId}")
-
-    def notify(self, eventType, message):
-        # something happened to the car: loop through every watcher and tell them
-        # each observer handles the notification in their own update() method
-        for observer in self.observers:
-            observer.update(self.carId, eventType, message)
-
-
 
 # BOOKING LOGIC
 
 
-# BOOKING MANAGER
+# BOOKING MANAGER (client)
 # this handles creating bookings and checking for conflicts
 # before creating any booking, we check the database to see if the car is already booked
 # for any overlapping dates. if it is, we reject the booking entirely.
@@ -109,13 +122,13 @@ class CarSubject:
 # so any renters watching that car know it just got booked
 class BookingManager:
 
-    def __init__(self):
+    def __init__(self) -> None:
         # each car gets its own CarSubject to manage its watchers
         # key = carId, value = CarSubject
         # we load watchers from the db when a car subject is first created
-        self.carSubjects = {}
+        self.carSubjects: dict = {}
 
-    def getCarSubject(self, carId):
+    def getCarSubject(self, carId: int) -> CarSubject:
         # if we haven't created a subject for this car yet, make one
         # and load all its watchers from the watched_cars table
         if carId not in self.carSubjects:
@@ -123,7 +136,7 @@ class BookingManager:
             self.loadWatchers(carId)
         return self.carSubjects[carId]
 
-    def loadWatchers(self, carId):
+    def loadWatchers(self, carId: int) -> None:
         # grab everyone who is watching this car from the db
         # and subscribe them to the car's subject
         conn = get_connection()
@@ -144,7 +157,7 @@ class BookingManager:
             renter = Renter(renterId=watcher["id"], renterEmail=watcher["email"])
             self.carSubjects[carId].subscribe(renter)
 
-    def checkOverlap(self, carId, startDate, endDate):
+    def checkOverlap(self, carId: int, startDate: str, endDate: str) -> bool:
         # this is the conflict prevention check
         # we look in the bookings table for any existing booking on this car
         # where the dates overlap with what's being requested
@@ -168,7 +181,7 @@ class BookingManager:
         # returns True if there's a conflict, False if the car is free
         return conflict is not None
 
-    def createBooking(self, carId, renterId, startDate, endDate, totalPrice):
+    def createBooking(self, carId: int, renterId: int, startDate: str, endDate: str, totalPrice: float) -> bool:
         # step 1: check for overlapping bookings: reject if conflict found
         if self.checkOverlap(carId, startDate, endDate):
             print(f"Booking rejected: car {carId} is already booked for those dates.")
@@ -198,7 +211,7 @@ class BookingManager:
 
         return True
 
-    def cancelBooking(self, bookingId):
+    def cancelBooking(self, bookingId: int) -> bool:
         # cancel a booking and notify watchers that the car is available again
         conn = get_connection()
         cursor = conn.cursor()
@@ -228,7 +241,7 @@ class BookingManager:
 
         return True
 
-    def watchCar(self, carId, renterId, renterEmail, maxPrice=None):
+    def watchCar(self, carId: int, renterId: int, renterEmail: str, maxPrice: float = None) -> None:
         # renter wants to watch a car: save it to watched_cars table
         # and subscribe them to the car's subject so they get notified
         conn = get_connection()

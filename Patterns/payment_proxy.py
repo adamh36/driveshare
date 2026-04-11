@@ -6,18 +6,34 @@ This file simulates a payment system using the Proxy pattern.
 PaymentService is the real subject that processes payments.
 PaymentProxy wraps it, controls access, updates the database,
 and sends notifications to both the owner and renter.
+
+Pattern roles:
+   Subject     -> IPaymentService (abstract interface)
+  RealSubject  -> PaymentService
+  Proxy        -> PaymentProxy
 """
- 
+
+from abc import ABC, abstractmethod
 from db.database import get_connection
- 
- 
+
+
+# SUBJECT INTERFACE (abstract)
+# defines the contract both the real service and the proxy must follow
+# the client only ever interacts with this interface — never directly
+# with PaymentService or PaymentProxy
+class IPaymentService(ABC):
+
+    @abstractmethod
+    def processPayment(self, bookingId: int, amount: float) -> bool: pass
+
+
 # REAL SUBJECT
 # this is the actual payment service — the thing doing the real work
 # in a real app this would talk to Stripe, PayPal, etc.
 # here we simulate it: we just print and return True to say it succeeded
-class PaymentService:
+class PaymentService(IPaymentService):
  
-    def processPayment(self, bookingId, amount):
+    def processPayment(self, bookingId: int, amount: float) -> bool:
         # simulate charging the renter
         # in production this would call an external payment API
         print(f"[PaymentService] Processing payment of ${amount:.2f} for booking #{bookingId}...")
@@ -31,13 +47,14 @@ class PaymentService:
 #   2. updates the payments table in the db to 'completed' (or 'failed')
 #   3. sends a message notification to both the owner and the renter
 # the caller never touches PaymentService directly — it only talks to the proxy
-class PaymentProxy:
+class PaymentProxy(IPaymentService):
  
-    def __init__(self):
+    def __init__(self) -> None:
         # create the real service — the proxy holds a reference to it
-        self._realService = PaymentService()
+        # through the shared IPaymentService interface
+        self._realService: IPaymentService = PaymentService()
  
-    def processPayment(self, bookingId, amount):
+    def processPayment(self, bookingId: int, amount: float) -> bool:
         # step 1: delegate to the real payment service
         success = self._realService.processPayment(bookingId, amount)
  
@@ -49,7 +66,7 @@ class PaymentProxy:
  
         return success
  
-    def _updatePaymentStatus(self, bookingId, amount, success):
+    def _updatePaymentStatus(self, bookingId: int, amount: float, success: bool) -> None:
         # determine the status string based on whether payment succeeded
         status = "completed" if success else "failed"
  
@@ -77,7 +94,7 @@ class PaymentProxy:
  
         print(f"[PaymentProxy] Payment record for booking #{bookingId} set to '{status}'.")
  
-    def _sendNotifications(self, bookingId, success):
+    def _sendNotifications(self, bookingId: int, success: bool) -> None:
         # look up the booking to find the renter and the owner of the car
         conn = get_connection()
         cursor = conn.cursor()
@@ -137,4 +154,3 @@ class PaymentProxy:
         conn.close()
  
         print(f"[PaymentProxy] Notifications sent to renter #{renterId} and owner #{ownerId}.")
- 

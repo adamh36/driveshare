@@ -80,6 +80,7 @@ class DriveShareMediator(Mediator):
             content = self._components.get("content")
             if content:
                 content.show_frame("dashboard")
+                content.refresh_current()  # rebuild dashboard cards for this user's role
 
         elif event == "logout":
             nav    = self._components.get("nav")

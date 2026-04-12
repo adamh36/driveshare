@@ -93,6 +93,9 @@ class DashboardFrame(UIComponent, ttk.Frame):
                        command=lambda f=frame_name: self.notify("navigate", f)).pack(anchor="w")
 
     def refresh_current(self):
+        # clear old cards and rebuild based on current user's role
+        for widget in self._grid_frame.winfo_children():
+            widget.destroy()
         self._refresh_header()
 
 

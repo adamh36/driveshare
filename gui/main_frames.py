@@ -46,38 +46,51 @@ class DashboardFrame(UIComponent, ttk.Frame):
             anchor="w", padx=24, pady=(16, 10)
         )
 
-        grid = ttk.Frame(self)
-        grid.pack(fill="x", padx=20)
+        # actions are filtered based on the user's role
+        self._grid_frame = ttk.Frame(self)
+        self._grid_frame.pack(fill="x", padx=20)
 
-        actions = [
-            ("Search Cars",   "search",       "Find and book available cars near you"),
-            ("List a Car",    "list_car",     "Earn money by renting out your vehicle"),
-            ("My Listings",   "my_listings",  "Manage your car listings"),
-            ("My Bookings",   "my_bookings",  "View and pay for your bookings"),
-            ("Messages",      "messages",     "Chat with owners and renters"),
-            ("Notifications", "notifications","View alerts and updates"),
-            ("Reviews",       "reviews",      "Leave and view rental reviews"),
+        self._refresh_header()
+
+    def _refresh_header(self):
+        user = SessionManager().current_user
+        if not user:
+            return
+
+        self._welcome_lbl.config(text=f"Welcome back, {user['username']}!")
+        self._balance_lbl.config(text=f"Balance: ${user['balance']:.2f}")
+
+        # clear old action cards before rebuilding
+        for widget in self._grid_frame.winfo_children():
+            widget.destroy()
+
+        role = user["role"]
+
+        # build action list based on role
+        all_actions = [
+            ("Search Cars",   "search",       "Find and book available cars near you",  ["renter", "both"]),
+            ("List a Car",    "list_car",     "Earn money by renting out your vehicle", ["owner", "both"]),
+            ("My Listings",   "my_listings",  "Manage your car listings",              ["owner", "both"]),
+            ("My Bookings",   "my_bookings",  "View and pay for your bookings",        ["renter", "both"]),
+            ("Messages",      "messages",     "Chat with owners and renters",           ["owner", "renter", "both"]),
+            ("Notifications", "notifications","View alerts and updates",                ["owner", "renter", "both"]),
+            ("Reviews",       "reviews",      "Leave and view rental reviews",          ["owner", "renter", "both"]),
         ]
 
-        for i, (title, frame_name, desc) in enumerate(actions):
+        # only show actions relevant to this user's role
+        visible = [(t, f, d) for t, f, d, roles in all_actions if role in roles]
+
+        for i, (title, frame_name, desc) in enumerate(visible):
             row, col = divmod(i, 3)
-            card = make_card(grid, padding=18)
+            card = make_card(self._grid_frame, padding=18)
             card.grid(row=row, column=col, padx=8, pady=8, sticky="nsew")
-            grid.columnconfigure(col, weight=1)
+            self._grid_frame.columnconfigure(col, weight=1)
 
             ttk.Label(card, text=title, style="CardHeading.TLabel").pack(anchor="w", pady=(4, 2))
             ttk.Label(card, text=desc, style="CardMuted.TLabel",
                       wraplength=180).pack(anchor="w", pady=(0, 10))
             ttk.Button(card, text="Open", style="Ghost.TButton",
                        command=lambda f=frame_name: self.notify("navigate", f)).pack(anchor="w")
-
-        self._refresh_header()
-
-    def _refresh_header(self):
-        user = SessionManager().current_user
-        if user:
-            self._welcome_lbl.config(text=f"Welcome back, {user['username']}!")
-            self._balance_lbl.config(text=f"Balance: ${user['balance']:.2f}")
 
     def refresh_current(self):
         self._refresh_header()
@@ -111,8 +124,8 @@ class SearchFrame(UIComponent, ttk.Frame):
             return var
 
         self._location   = lbl_entry(row1, "Location", width=18)
-        self._start_date = lbl_entry(row1, "From", str(date.today() + timedelta(days=1)), 12)
-        self._end_date   = lbl_entry(row1, "To",   str(date.today() + timedelta(days=4)), 12)
+        self._start_date = lbl_entry(row1, "From (YYYY-MM-DD)", str(date.today() + timedelta(days=1)), 12)
+        self._end_date   = lbl_entry(row1, "To (YYYY-MM-DD)",   str(date.today() + timedelta(days=4)), 12)
         self._max_price  = lbl_entry(row1, "Max/Day ($)", width=8)
 
         ttk.Button(row1, text="Search", style="Accent.TButton",
@@ -191,7 +204,7 @@ class SearchFrame(UIComponent, ttk.Frame):
         if not car:
             return
         max_p_str = simpledialog.askstring(
-            "Watch Car", "Max price/day to be notified (leave blank for any):",
+            "Watch Car", "Max price/day to notify you (leave blank for any):",
             parent=self
         )
         try:
@@ -297,11 +310,12 @@ class MyListingsFrame(UIComponent, ttk.Frame):
 
         cols = ("ID", "Year", "Make", "Model", "Location", "$/Day", "Available")
         widths = {"ID":50,"Year":60,"Make":90,"Model":100,"Location":150,"$/Day":80,"Available":80}
-        self._tree = make_scrolled_treeview(self, cols, heights=13, col_widths=widths)
+        self._tree = make_scrolled_treeview(self, cols, heights=10, col_widths=widths)
 
         make_action_bar(self, [
-            ("Refresh",       "Ghost.TButton",  self._refresh),
-            ("Edit Selected", "Accent.TButton", self._edit),
+            ("Refresh",          "Ghost.TButton",  self._refresh),
+            ("Edit Selected",    "Accent.TButton", self._edit),
+            ("Manage Calendar",  "Ghost.TButton",  self._manage_calendar),
         ])
 
         self._refresh()
@@ -327,6 +341,14 @@ class MyListingsFrame(UIComponent, ttk.Frame):
         EditListingDialog(self, car)
         self._refresh()
 
+    def _manage_calendar(self):
+        sel = self._tree.selection()
+        if not sel:
+            messagebox.showwarning("No Selection", "Select a car to manage its calendar.")
+            return
+        car = self._cars[self._tree.index(sel[0])]
+        AvailabilityCalendarDialog(self, car)
+
     def refresh_current(self):
         self._refresh()
 
@@ -347,7 +369,9 @@ class EditListingDialog(tk.Toplevel):
         ttk.Label(card, text=f"Editing: {car['year']} {car['make']} {car['model']}",
                   style="CardHeading.TLabel").grid(row=0, column=0, columnspan=2, sticky="w", pady=(0,14))
 
-        ttk.Label(card, text="Price / Day ($)", style="CardMuted.TLabel").grid(row=1, column=0, sticky="w", padx=(0,12), pady=6)
+        ttk.Label(card, text="Price / Day ($)", style="CardMuted.TLabel").grid(
+            row=1, column=0, sticky="w", padx=(0,12), pady=6
+        )
         self._price = tk.StringVar(value=str(car["price_per_day"]))
         ttk.Entry(card, textvariable=self._price, width=16).grid(row=1, column=1, sticky="ew", pady=6)
 
@@ -356,7 +380,9 @@ class EditListingDialog(tk.Toplevel):
             row=2, column=0, columnspan=2, sticky="w", pady=6
         )
 
-        ttk.Label(card, text="Description", style="CardMuted.TLabel").grid(row=3, column=0, sticky="nw", padx=(0,12), pady=6)
+        ttk.Label(card, text="Description", style="CardMuted.TLabel").grid(
+            row=3, column=0, sticky="nw", padx=(0,12), pady=6
+        )
         self._desc = styled_text(card, height=4, width=30)
         self._desc.insert("1.0", car.get("description", ""))
         self._desc.grid(row=3, column=1, sticky="ew", pady=6)
@@ -385,6 +411,102 @@ class EditListingDialog(tk.Toplevel):
         self.destroy()
 
 
+class AvailabilityCalendarDialog(tk.Toplevel):
+    """
+    Owner sets which dates are available or blocked for a specific car.
+    Uses tkcalendar for a visual calendar widget.
+    Dates not explicitly set are treated as available by default.
+    """
+
+    def __init__(self, parent, car):
+        super().__init__(parent)
+        self.title(f"Availability Calendar: {car['year']} {car['make']} {car['model']}")
+        self.configure(bg=Colors.BG_DARK)
+        self.geometry("520x480")
+        self._car = car
+        self._build()
+
+    def _build(self):
+        try:
+            from tkcalendar import Calendar
+        except ImportError:
+            messagebox.showerror(
+                "Missing Package",
+                "Please install tkcalendar:\n\npip install tkcalendar",
+                parent=self
+            )
+            self.destroy()
+            return
+
+        ttk.Label(self, text="Click a date then mark it Available or Blocked.",
+                  style="Muted.TLabel").pack(pady=(16, 8))
+
+        # load existing availability for this car
+        self._availability = CarService.get_availability(self._car["id"])
+
+        self._cal = Calendar(
+            self,
+            selectmode="day",
+            date_pattern="yyyy-mm-dd",
+            background=Colors.BG_CARD,
+            foreground=Colors.TEXT_PRI,
+            headersbackground=Colors.BG_DARK,
+            headersforeground=Colors.TEXT_MUT,
+            selectbackground=Colors.ACCENT,
+            normalbackground=Colors.BG_CARD,
+            normalforeground=Colors.TEXT_PRI,
+            weekendbackground=Colors.BG_CARD,
+            weekendforeground=Colors.TEXT_MUT,
+            othermonthbackground=Colors.BG_DARK,
+            othermonthforeground="#444444",
+            font=Fonts.BODY
+        )
+        self._cal.pack(padx=20, pady=8, fill="both", expand=True)
+
+        # highlight already-set dates
+        self._refresh_highlights()
+
+        btn_bar = ttk.Frame(self, style="TFrame")
+        btn_bar.pack(pady=12)
+
+        ttk.Button(btn_bar, text="Mark Available", style="Success.TButton",
+                   command=lambda: self._set(1)).pack(side="left", padx=6)
+        ttk.Button(btn_bar, text="Mark Blocked", style="Danger.TButton",
+                   command=lambda: self._set(0)).pack(side="left", padx=6)
+        ttk.Button(btn_bar, text="Close", style="Ghost.TButton",
+                   command=self.destroy).pack(side="left", padx=6)
+
+        self._status = ttk.Label(self, text="", style="Muted.TLabel")
+        self._status.pack()
+
+    def _set(self, is_available):
+        selected = self._cal.get_date()
+        CarService.set_availability(self._car["id"], selected, is_available)
+        self._availability = CarService.get_availability(self._car["id"])
+        self._refresh_highlights()
+        status = "Available" if is_available else "Blocked"
+        self._status.config(text=f"{selected} marked as {status}.")
+
+    def _refresh_highlights(self):
+        # clear all existing tags first
+        self._cal.calevent_remove("all")
+
+        for date_str, is_avail in self._availability.items():
+            try:
+                year, month, day = map(int, date_str.split("-"))
+                import datetime
+                d = datetime.date(year, month, day)
+                if is_avail:
+                    self._cal.calevent_create(d, "Available", "available")
+                else:
+                    self._cal.calevent_create(d, "Blocked", "blocked")
+            except Exception:
+                pass
+
+        self._cal.tag_config("available", background="#16a34a", foreground="white")
+        self._cal.tag_config("blocked",   background="#dc2626", foreground="white")
+
+
 class MyBookingsFrame(UIComponent, ttk.Frame):
 
     def __init__(self, parent, mediator):
@@ -407,7 +529,7 @@ class MyBookingsFrame(UIComponent, ttk.Frame):
         make_action_bar(self, [
             ("Refresh",        "Ghost.TButton",   self._refresh),
             ("Pay Selected",   "Success.TButton", self._pay),
-            ("Cancel Selected","Danger.TButton",   self._cancel),
+            ("Cancel Selected","Danger.TButton",  self._cancel),
         ])
 
         self._refresh()
@@ -421,7 +543,8 @@ class MyBookingsFrame(UIComponent, ttk.Frame):
             status_label = {
                 "pending":   "Pending",
                 "confirmed": "Confirmed",
-                "cancelled": "Cancelled"
+                "cancelled": "Cancelled",
+                "completed": "Completed"
             }.get(b["status"], b["status"])
             self._tree.insert("", "end", values=(
                 b["id"], f"{b['year']} {b['make']} {b['model']}",

@@ -2,7 +2,7 @@
 models/car.py
 CIS 476 Term Project: DriveShare
 
-CarService handles car listing operations.
+CarService handles car listing and availability operations.
 BookingService handles booking creation, payment, and cancellation.
 """
 
@@ -17,6 +17,7 @@ class CarService:
 
     @staticmethod
     def search_cars(location, start_date, end_date, max_price=0.0):
+        # returns available cars matching filters, excluding already-booked ones
         conn = get_connection()
         cursor = conn.cursor()
 
@@ -119,6 +120,59 @@ class CarService:
         conn.close()
         return True, "You are now watching this car."
 
+    @staticmethod
+    def set_availability(car_id, date_str, is_available):
+        """
+        Owner marks a specific date as available (1) or blocked (0).
+        Uses INSERT OR REPLACE so calling it twice just updates the record.
+        """
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO availability (car_id, date, is_available)
+            VALUES (?, ?, ?)
+        """, (car_id, date_str, 1 if is_available else 0))
+        conn.commit()
+        conn.close()
+
+    @staticmethod
+    def get_availability(car_id):
+        """
+        Returns a dict of { date_str: is_available } for all dates
+        the owner has explicitly set for this car.
+        """
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT date, is_available FROM availability WHERE car_id = ? ORDER BY date ASC",
+            (car_id,)
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return {row["date"]: row["is_available"] for row in rows}
+
+    @staticmethod
+    def is_date_range_available(car_id, start_date, end_date):
+        """
+        Returns True if every date in the range is available (or not explicitly blocked).
+        Used by search to filter cars that the owner has blocked.
+        """
+        from datetime import datetime, timedelta
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end   = datetime.strptime(end_date, "%Y-%m-%d")
+
+        availability = CarService.get_availability(car_id)
+
+        current = start
+        while current < end:
+            date_str = current.strftime("%Y-%m-%d")
+            # if explicitly blocked by owner, return False
+            if availability.get(date_str, 1) == 0:
+                return False
+            current += timedelta(days=1)
+
+        return True
+
 
 class BookingService:
 
@@ -127,9 +181,6 @@ class BookingService:
         user_id = SessionManager().user_id
         if not user_id:
             return False, "You must be logged in.", None
-
-        # use BookingManager which has the conflict prevention logic
-        manager = BookingManager()
 
         conn = get_connection()
         cursor = conn.cursor()
@@ -150,8 +201,14 @@ class BookingService:
         if days <= 0:
             return False, "End date must be after start date.", None
 
+        # check owner availability calendar before creating booking
+        if not CarService.is_date_range_available(car_id, start_date, end_date):
+            return False, "The owner has blocked some dates in that range.", None
+
         total = days * car["price_per_day"]
 
+        # BookingManager handles the overlap conflict prevention check
+        manager = BookingManager()
         success = manager.createBooking(
             carId=car_id,
             renterId=user_id,
@@ -163,7 +220,6 @@ class BookingService:
         if not success:
             return False, "This car is already booked for those dates.", None
 
-        # get the booking id just created
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("""
@@ -187,7 +243,7 @@ class BookingService:
         if not booking:
             return False, "Booking not found."
 
-        # Proxy pattern handles payment and sends notifications
+        # Proxy pattern handles payment and sends notifications to owner and renter
         proxy = PaymentProxy()
         success = proxy.processPayment(booking_id, booking["total_price"])
 

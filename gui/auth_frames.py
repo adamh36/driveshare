@@ -113,6 +113,7 @@ class RegisterFrame(UIComponent, ttk.Frame):
         inner.bind("<Configure>", _on_inner_configure)
         canvas.bind("<Configure>", _on_canvas_configure)
 
+        # account details card
         acct = make_card(inner, padding=22)
         acct.pack(fill="x", pady=6)
         acct.columnconfigure(1, weight=1)
@@ -124,6 +125,21 @@ class RegisterFrame(UIComponent, ttk.Frame):
         self._password = _card_entry(acct, "Password", 3, show="*")
         self._confirm  = _card_entry(acct, "Confirm Password", 4, show="*")
 
+        # role selector — owner lists cars, renter books cars, both can do everything
+        ttk.Label(acct, text="I want to", style="CardMuted.TLabel").grid(
+            row=5, column=0, sticky="w", padx=(0, 14), pady=6
+        )
+        self._role = tk.StringVar(value="renter")
+        role_cb = ttk.Combobox(
+            acct,
+            textvariable=self._role,
+            values=["renter", "owner", "both"],
+            state="readonly",
+            width=28
+        )
+        role_cb.grid(row=5, column=1, sticky="ew", pady=6)
+
+        # security questions card
         sq = make_card(inner, padding=22)
         sq.pack(fill="x", pady=6)
         sq.columnconfigure(1, weight=1)
@@ -156,8 +172,10 @@ class RegisterFrame(UIComponent, ttk.Frame):
         if self._password.get() != self._confirm.get():
             messagebox.showerror("Error", "Passwords do not match.")
             return
+        # role is now passed through to AuthService
         ok, msg = AuthService.register(
             self._username.get(), self._email.get(), self._password.get(),
+            self._role.get(),
             self._sq[0].get(), self._sa[0].get(),
             self._sq[1].get(), self._sa[1].get(),
             self._sq[2].get(), self._sa[2].get(),

@@ -42,8 +42,9 @@ class AuthService:
         return True, "Login successful."
 
     @staticmethod
-    def register(username, email, password, q1, a1, q2, a2, q3, a3):
-        if not all([username, email, password, q1, a1, q2, a2, q3, a3]):
+    def register(username, email, password, role, q1, a1, q2, a2, q3, a3):
+        # role is now passed in from the register form — owner, renter, or both
+        if not all([username, email, password, role, q1, a1, q2, a2, q3, a3]):
             return False, "Please fill in all fields."
 
         if "@" not in email or "." not in email:
@@ -51,6 +52,9 @@ class AuthService:
 
         if len(password) < 6:
             return False, "Password must be at least 6 characters."
+
+        if role not in ("owner", "renter", "both"):
+            return False, "Please select a valid role."
 
         hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
 
@@ -60,7 +64,7 @@ class AuthService:
 
             cursor.execute(
                 "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)",
-                (username, email, hashed, "both")
+                (username, email, hashed, role)
             )
             user_id = cursor.lastrowid
 
@@ -84,6 +88,7 @@ class AuthService:
 
     @staticmethod
     def _get_balance(user_id):
+        # starts everyone at $500, adds received payments, subtracts spent
         conn = get_connection()
         cursor = conn.cursor()
 

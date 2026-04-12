@@ -287,6 +287,13 @@ class ListCarFrame(UIComponent, ttk.Frame):
             messagebox.showinfo("Success", msg)
             self._clear()
             self.notify("car_listed", None)
+
+            # open the availability calendar right after listing
+            # so the owner can set their available dates immediately
+            cars = CarService.get_owner_cars(SessionManager().user_id)
+            if cars:
+                newest_car = cars[0]  # get_owner_cars orders by created_at DESC
+                AvailabilityCalendarDialog(self, newest_car)
         else:
             messagebox.showerror("Error", msg)
 

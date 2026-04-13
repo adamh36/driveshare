@@ -37,7 +37,7 @@ from Patterns.payment_proxy import PaymentProxy
 from Patterns.listing_builder import FullCarListingBuilder, ListingDirector
 
 
-# ── Test Infrastructure ────────────────────────────────────────────────────────
+# Test Infrastructure 
 
 PASS = 0
 FAIL = 0
@@ -93,7 +93,7 @@ def teardown():
     print("\nTest database cleaned up.")
 
 
-# ── Test Suites ────────────────────────────────────────────────────────────────
+# Test Suites 
 
 def run_auth_tests():
     print("\n── Authentication & Registration ──────────────────────────────")
@@ -625,7 +625,7 @@ def run_review_tests():
     test("Reject invalid rating",               test_invalid_rating_rejected)
 
 
-# ── Main ───────────────────────────────────────────────────────────────────────
+#  Main 
 
 def main():
     print("=" * 60)

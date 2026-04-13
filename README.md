@@ -1,4 +1,4 @@
-# DriveShare — Peer-to-Peer Car Rental Platform
+# DriveShare: Peer-to-Peer Car Rental Platform
 
 A desktop car rental app built with Python and Tkinter, inspired by Turo. Car owners can list vehicles and set availability, renters can search, book, and pay. Built for CIS 476 at University of Michigan-Dearborn.
 

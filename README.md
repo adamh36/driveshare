@@ -25,11 +25,6 @@ pip install -r requirements.txt
 python3 app.py
 ```
 
-## Run Tests
-```bash
-python3 test_runner.py
-```
-
 ## Stack
 Python 3.11 · Tkinter · SQLite · bcrypt · tkcalendar
 

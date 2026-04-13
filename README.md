@@ -16,7 +16,6 @@ Singleton, Observer, Mediator, Builder, Proxy, Chain of Responsibility
 
 ## Setup
 
-\```bash
 # 1. Clone the repo
 git clone https://github.com/adamh36/driveshare.git
 cd driveshare
